@@ -61,12 +61,6 @@
 
         // Создание карты
         const map = L.map('map', { zoomControl: false }).setView([48.3794, 31.1656], 6);
-        
-        // Темная тема карты (CartoDB DarkMatter)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-
         const markers = {};
         const lines = {};
 
