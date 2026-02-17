@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Карта целей от @monitor_bacy /@zp_monitor</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: #000; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+
+        /* Стиль иконок целей */
+        .unit-icon { 
+            display: block; 
+            width: 30px !important; 
+            height: 30px !important; 
+            transition: transform 0.2s linear; 
+        }
+
+        /* LIVE индикатор сверху */
+        .live-badge {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8); color: #ff0000; padding: 5px 20px;
+            border-radius: 20px; border: 1px solid #ff0000; font-weight: bold;
+            z-index: 1000; font-size: 14px; letter-spacing: 1px;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.3);
+        }
+
+        /* Заглушка, когда мониторинг приостановлен */
+        #closedOverlay {
+            display: none; /* Скрыто по умолчанию */
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 9999; 
+            flex-direction: column; justify-content: center; align-items: center; 
+            color: white; text-align: center; padding: 20px;
+        }
+        #closedOverlay img { width: 120px; border-radius: 50%; margin-bottom: 20px; border: 2px solid #ff0000; }
+        #closedOverlay h2 { color: #ff0000; font-size: 28px; margin: 0 0 10px 0; }
+        #closedOverlay p { font-size: 18px; color: #ccc; max-width: 500px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+    <div id="closedOverlay">
+        <img src="Avatarka.png" alt="Logo">
+        <h2>МОНИТОРИНГ ПРИОСТАНОВЛЕН</h2>
+        <p>Сейчас операторы карты не ведут активный мониторинг целей. Пожалуйста, зайдите позже.</p>
+    </div>
+
+    <div class="live-badge">LIVE МОНИТОРИНГ</div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // Твой конфиг Firebase
+        const firebaseConfig = { databaseURL: "https://map-objects-75fa0-default-rtdb.europe-west1.firebasedatabase.app/" };
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Создание карты
+        const map = L.map('map', { zoomControl: false }).setView([48.3794, 31.1656], 6);
+        
+        // Темная тема карты (CartoDB DarkMatter)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        const markers = {};
+        const lines = {};
+
+        // 1. СЛУШАЕМ СТАТУС КАРТЫ (ОТКРЫТО/ЗАКРЫТО)
+        onValue(ref(db, 'map_status'), (snapshot) => {
+            const status = snapshot.val();
+            const overlay = document.getElementById('closedOverlay');
+            if (status && status.active === false) {
+                overlay.style.display = 'flex'; // Блокируем экран
+            } else {
+                overlay.style.display = 'none'; // Показываем карту
+            }
+        });
+
+        // 2. СЛУШАЕМ ЦЕЛИ В РЕАЛЬНОМ ВРЕМЕНИ
+        onValue(ref(db, 'live_units'), (snapshot) => {
+            const data = snapshot.val() || [];
+            const activeIds = data.map(d => d.id.toString());
+
+            // Удаляем маркеры целей, которые были удалены в админке
+            Object.keys(markers).forEach(id => {
+                if (!activeIds.includes(id)) {
+                    map.removeLayer(markers[id]);
+                    map.removeLayer(lines[id]);
+                    delete markers[id];
+                    delete lines[id];
+                }
+            });
+
+            // Добавляем или обновляем позиции целей
+            data.forEach(u => {
+                const id = u.id.toString();
+                const pos = [u.lat, u.lng];
+
+                if (!markers[id]) {
+                    // Создаем новый маркер
+                    const icon = L.divIcon({
+                        className: 'custom-div',
+                        html: `<img src="${u.iconUrl}" class="unit-icon" style="transform:rotate(${u.angle}deg)">`,
+                        iconSize: [30, 30], iconAnchor: [15, 15]
+                    });
+                    markers[id] = L.marker(pos, { icon: icon }).addTo(map);
+                    
+                    // Создаем линию вектора
+                    lines[id] = L.polyline([pos, u.targetLat ? [u.targetLat, u.targetLng] : pos], {
+                        color: 'red', weight: 2, dashArray: '5, 5', opacity: 0.5
+                    }).addTo(map);
+                } else {
+                    // Обновляем позицию существующей цели
+                    markers[id].setLatLng(pos);
+                    
+                    // Обновляем линию вектора
+                    if (u.targetLat) {
+                        lines[id].setLatLngs([pos, [u.targetLat, u.targetLng]]);
+                    } else {
+                        lines[id].setLatLngs([]);
+                    }
+
+                    // Обновляем поворот картинки
+                    const img = markers[id].getElement()?.querySelector('img');
+                    if (img) img.style.transform = `rotate(${u.angle}deg)`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
