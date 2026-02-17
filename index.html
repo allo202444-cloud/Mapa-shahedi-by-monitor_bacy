@@ -1,112 +1,50 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>LIVE Мониторинг целей</title>
+    <title>Карта мониторинга</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: #000; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; z-index: 1; }
-
-        /* Стиль иконок */
-        .unit-icon { 
-            display: block; 
-            width: 30px !important; 
-            height: 30px !important; 
-            transition: transform 0.2s linear, top 1s linear, left 1s linear; 
-        }
-
-        /* Бейдж (инфо-панель) */
-        .live-badge {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8); color: #ff0000; padding: 5px 20px;
-            border-radius: 20px; border: 1px solid #ff0000; font-weight: bold;
-            z-index: 1000; font-size: 14px; letter-spacing: 1px;
-        }
+        html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #fff; }
+        .unit-icon { width: 32px; height: 32px; transition: transform 0.2s; }
     </style>
 </head>
 <body>
-
-    <div class="live-badge">LIVE МОНИТОРИНГ</div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // Твоя ссылка на базу данных
         const firebaseConfig = { databaseURL: "https://map-objects-75fa0-default-rtdb.europe-west1.firebasedatabase.app/" };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Инициализация карты
-        const map = L.map('map', { zoomControl: false }).setView([48.3794, 31.1656], 6);
+        const map = L.map('map', { zoomControl: false }).setView([48.3, 31.1], 6);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        const markers = {}; // Хранилище активных маркеров на карте
-        const lines = {};   // Хранилище векторов (пунктирных линий)
+        const markers = {}, lines = {};
 
-        // Функция сопоставления типов и картинок (проверь, чтобы названия файлов совпадали!)
-        function getIconUrl(type) {
-            const icons = {
-                'shahed': 's1.png', 'shahed2': 's2.png', 'scout': 'orlan.png',
-                'zala': 'zala.png', 'kab': 'kab.png', 'kar': 'kr.png',
-                'air-missile': 'PR.png', 'uav-unknown': 'uav.png',
-                'su34': 'su34.png', 'r-shahed': 'react.png'
-            };
-            return icons[type] || 'uav.png';
-        }
+        onValue(ref(db, 'live_units'), (s) => {
+            const data = s.val() || [];
+            const ids = data.map(d => d.id.toString());
 
-        // Слушаем Firebase
-        onValue(ref(db, 'live_units'), (snapshot) => {
-            const data = snapshot.val() || [];
-            const activeIds = data.map(d => d.id.toString());
-
-            // 1. Удаляем маркеры, которых больше нет в базе данных
             Object.keys(markers).forEach(id => {
-                if (!activeIds.includes(id)) {
-                    map.removeLayer(markers[id]);
-                    map.removeLayer(lines[id]);
-                    delete markers[id];
-                    delete lines[id];
-                }
+                if(!ids.includes(id)) { map.removeLayer(markers[id]); map.removeLayer(lines[id]); delete markers[id]; delete lines[id]; }
             });
 
-            // 2. Добавляем или обновляем цели
             data.forEach(u => {
                 const id = u.id.toString();
-                const pos = [u.lat, u.lng];
-
-                if (!markers[id]) {
-                    // Создаем новый маркер
-                    const icon = L.divIcon({
-                        className: 'custom-div',
-                        html: `<img src="${getIconUrl(u.type)}" class="unit-icon" style="transform:rotate(${u.angle}deg)">`,
-                        iconSize: [30, 30], iconAnchor: [15, 15]
-                    });
-                    markers[id] = L.marker(pos, { icon: icon }).addTo(map);
-                    
-                    // Создаем линию вектора
-                    lines[id] = L.polyline([pos, u.targetLat ? [u.targetLat, u.targetLng] : pos], {
-                        color: 'red', weight: 2, dashArray: '5, 5', opacity: 0.6
-                    }).addTo(map);
+                if(!markers[id]) {
+                    const i = L.divIcon({ html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${u.ang}deg)">`, iconSize:[32,32], iconAnchor:[16,16], className:'' });
+                    markers[id] = L.marker([u.lat, u.lng], {icon:i}).addTo(map);
+                    lines[id] = L.polyline([[u.lat, u.lng], u.tLat ? [u.tLat, u.tLng] : [u.lat, u.lng]], {color:'blue', weight:2, dashArray:'5,5', opacity:0.5}).addTo(map);
                 } else {
-                    // Обновляем существующий маркер
-                    markers[id].setLatLng(pos);
-                    
-                    // Обновляем линию
-                    if (u.targetLat) {
-                        lines[id].setLatLngs([pos, [u.targetLat, u.targetLng]]);
-                    } else {
-                        lines[id].setLatLngs([]);
-                    }
-
-                    // Обновляем поворот иконки
+                    markers[id].setLatLng([u.lat, u.lng]);
+                    lines[id].setLatLngs([[u.lat, u.lng], u.tLat ? [u.tLat, u.tLng] : [u.lat, u.lng]]);
                     const img = markers[id].getElement()?.querySelector('img');
-                    if (img) img.style.transform = `rotate(${u.angle}deg)`;
+                    if(img) img.style.transform = `rotate(${u.ang}deg)`;
                 }
             });
         });
