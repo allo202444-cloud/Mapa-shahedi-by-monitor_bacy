@@ -7,85 +7,102 @@
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* Стилі з файлу index (2).html */
         :root {
             --main-yellow: #ffeb3b;
-            --glow: 0 0 20px rgba(255, 235, 59, 0.5);
-            --card-bg: #161b22;
+            --glow: 0 0 15px rgba(255, 235, 59, 0.4);
+            --card-bg: rgba(0, 0, 0, 0.85);
         }
 
-        body, html { 
-            margin: 0; padding: 0; height: 100%; 
-            font-family: 'Segoe UI', sans-serif; 
-            background: #fff; overflow: hidden; 
-        }
-
-        /* МАПА (стандартна світла) */
-        #map { 
-            height: 100vh; width: 100%; 
-            transition: filter 1.5s ease; 
-            filter: blur(20px) brightness(0.8); /* Трохи світліший блюр для білої карти */
-        }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: #fff; overflow: hidden; }
+        #map { height: 100vh; width: 100%; transition: filter 1s ease; filter: blur(15px) brightness(0.8); }
         .map-active { filter: blur(0px) brightness(1) !important; }
 
-        /* ВЕРХНЯ ПАНЕЛЬ (Dynamic Island) */
+        /* ВЕРХНЯ ПАНЕЛЬ */
         #top-status-bar {
             position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
             z-index: 5000; background: #000; border: 1px solid var(--main-yellow);
-            box-shadow: var(--glow); border-radius: 20px;
-            padding: 10px 25px; display: flex; align-items: center; gap: 30px;
-            color: white; font-size: 14px; font-weight: bold;
-            transition: top 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+            backdrop-filter: blur(10px); box-shadow: var(--glow); border-radius: 20px;
+            padding: 8px 20px; display: flex; align-items: center; gap: 25px;
+            color: white; font-size: 13px; font-weight: bold;
+            transition: top 0.7s cubic-bezier(0.18, 0.89, 0.32, 1.28);
         }
-        .status-item { display: flex; flex-direction: column; align-items: center; }
-        .status-label { color: var(--main-yellow); font-size: 9px; text-transform: uppercase; }
+
+        /* КНОПКА НАЛАШТУВАНЬ */
+        #settings-btn {
+            position: fixed; bottom: 25px; right: 25px; z-index: 6000;
+            background: #000; border: 1px solid var(--main-yellow);
+            width: 50px; height: 50px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: var(--glow); 
+            opacity: 0; 
+            transition: all 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        #settings-btn svg { width: 26px; height: 26px; fill: var(--main-yellow); transition: transform 0.5s; }
+        
+        /* Ефект при відкритті: зміщується вище і лівіше */
+        #settings-btn.open {
+            bottom: 185px; /* піднялась вище */
+            right: 35px;   /* змістилась лівіше */
+            transform: scale(0.9);
+        }
+        #settings-btn.open svg { transform: rotate(180deg); }
+
+        /* ПАНЕЛЬ НАЛАШТУВАНЬ */
+        #settings-panel {
+            position: fixed; bottom: 25px; right: 25px;
+            z-index: 5500; background: var(--card-bg); border: 1px solid var(--main-yellow);
+            backdrop-filter: blur(15px); box-shadow: var(--glow); border-radius: 25px;
+            padding: 20px; width: 230px; color: white;
+            pointer-events: none; opacity: 0; transform: scale(0.8); transform-origin: bottom right;
+            transition: all 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        #settings-panel.active { pointer-events: auto; opacity: 1; transform: scale(1); }
+
+        .setting-row { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; font-size: 14px; font-weight: 600; }
+        
+        /* ПЕРЕМИКАЧІ */
+        .switch { position: relative; display: inline-block; width: 38px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background-color: #333; transition: .4s; border-radius: 20px; border: 1px solid #555; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--main-yellow); border-color: var(--main-yellow); }
+        input:checked + .slider:before { transform: translateX(16px); background-color: #000; }
 
         /* РЕЄСТРАЦІЯ */
-        #auth-overlay {
-            position: fixed; inset: 0; background: #f0f0f0; /* Світлий фон для світлої карти */
-            display: flex; align-items: center; justify-content: center;
-            z-index: 9999; transition: 0.8s;
-        }
-        .auth-card {
-            width: 85%; max-width: 380px; text-align: center;
-            background: var(--card-bg); padding: 50px 30px; border-radius: 40px;
-            border: 2px solid var(--main-yellow); box-shadow: var(--glow);
-            transition: transform 0.8s ease, opacity 0.5s ease;
-        }
-        .nick-input {
-            width: 90%; background: #000; border: 1px solid var(--main-yellow);
-            border-radius: 15px; padding: 18px; color: white; text-align: center;
-            font-size: 18px; outline: none; margin-bottom: 30px;
-        }
-        .btn-start {
-            background: var(--main-yellow); color: #000; border: none;
-            padding: 18px 60px; border-radius: 40px; font-size: 18px;
-            font-weight: 900; cursor: pointer;
-        }
+        #auth-overlay { position: fixed; inset: 0; background: #f0f0f0; display: flex; align-items: center; justify-content: center; z-index: 9999; transition: 0.8s; }
+        .auth-card { width: 85%; max-width: 350px; text-align: center; background: #161b22; padding: 40px 25px; border-radius: 35px; border: 2px solid var(--main-yellow); box-shadow: var(--glow); }
+        .nick-input { width: 85%; background: #000; border: 1px solid var(--main-yellow); border-radius: 12px; padding: 15px; color: white; text-align: center; font-size: 16px; outline: none; margin-bottom: 25px; }
+        .btn-start { background: var(--main-yellow); color: #000; border: none; padding: 15px 50px; border-radius: 30px; font-size: 16px; font-weight: 900; cursor: pointer; }
         .auth-hidden { opacity: 0 !important; visibility: hidden !important; }
-        .card-exit { transform: scale(3) !important; opacity: 0 !important; }
+        .card-exit { transform: scale(2); opacity: 0 !important; }
 
-        /* ІКОНКИ ЦІЛЕЙ */
-        .unit-icon { 
-            width: 32px !important; height: 32px !important; 
-            transition: transform 0.1s linear; 
-        }
+        .unit-icon { width: 32px !important; height: 32px !important; transition: transform 0.1s linear; }
     </style>
 </head>
 <body>
 
     <div id="auth-overlay">
-        <div class="auth-card" id="auth-card">
-            <div style="color: var(--main-yellow); font-size: 38px; font-weight: 900; line-height:1; margin-bottom: 40px;">ОПЕРАТИВНО<br>ЄЦІЛЬ</div>
+        <div class="auth-card">
+            <div style="color: var(--main-yellow); font-size: 32px; font-weight: 900; line-height:1.1; margin-bottom: 30px;">ОПЕРАТИВНО<br>ЄЦІЛЬ</div>
             <input type="text" id="user-nick" class="nick-input" placeholder="Позивний">
             <button class="btn-start" id="start-btn">УВІЙТИ</button>
         </div>
     </div>
 
     <div id="top-status-bar">
-        <div class="status-item"><span class="status-label">Проєкт</span><span>ЄЦІЛЬ</span></div>
-        <div class="status-item"><span class="status-label">Позивний</span><span id="display-nick" style="color:var(--main-yellow);">---</span></div>
-        <div class="status-item"><span class="status-label">Онлайн</span><span id="online-num" style="color:#4caf50;">1</span></div>
+        <div style="display: flex; flex-direction: column; align-items: center;"><span style="color: var(--main-yellow); font-size: 8px; text-transform: uppercase;">Проєкт</span><span>ЄЦІЛЬ</span></div>
+        <div style="display: flex; flex-direction: column; align-items: center;"><span style="color: var(--main-yellow); font-size: 8px; text-transform: uppercase;">Позивний</span><span id="display-nick">---</span></div>
+        <div style="display: flex; flex-direction: column; align-items: center;"><span style="color: var(--main-yellow); font-size: 8px; text-transform: uppercase;">Онлайн</span><span id="online-num" style="color:#4caf50;">1</span></div>
+    </div>
+
+    <div id="settings-btn">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+    </div>
+
+    <div id="settings-panel">
+        <div style="text-align:center; color:var(--main-yellow); font-weight:900; font-size:11px; margin-bottom:15px;">КЕРУВАННЯ ШАРАМИ</div>
+        <div class="setting-row"><span>Пуски "Shahed"</span><label class="switch"><input type="checkbox" id="toggle-shahed" checked><span class="slider"></span></label></div>
+        <div class="setting-row"><span>Зони балістики</span><label class="switch"><input type="checkbox" id="toggle-ballistic" checked><span class="slider"></span></label></div>
     </div>
 
     <div id="map"></div>
@@ -99,86 +116,59 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Ініціалізація карти
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.37, 31.16], 6);
-        
-        // СТАНДАРТНИЙ БІЛИЙ ШАР
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        const units = {};
+        const shahedLayer = L.layerGroup().addTo(map);
+        const ballisticLayer = L.layerGroup().addTo(map);
 
-        // Логіка реєстрації та входу
+        const shahedCoords = [[46.058,38.237],[54.338,32.475],[46.815,36.759],[48.072,37.715],[44.781,33.573],[51.750,36.292],[53.356,35.789],[52.826,34.500],[48.951,40.296],[45.017,35.846],[45.117,33.986]];
+        const ballisticCoords = [[49.411,38.154],[45.698,34.422],[45.020,34.101],[48.916,40.349],[47.218,38.782],[45.744,33.489],[52.619,32.292],[51.746,36.287],[50.941,39.488],[50.524,36.528]];
+
+        shahedCoords.forEach(c => L.marker(c, {icon: L.icon({iconUrl:'Shahedpusk.png', iconSize:[24,24]})}).addTo(shahedLayer));
+        ballisticCoords.forEach(c => L.marker(c, {icon: L.icon({iconUrl:'puskbr.png', iconSize:[24,24]})}).addTo(ballisticLayer));
+
+        document.getElementById('toggle-shahed').onchange = (e) => e.target.checked ? map.addLayer(shahedLayer) : map.removeLayer(shahedLayer);
+        document.getElementById('toggle-ballistic').onchange = (e) => e.target.checked ? map.addLayer(ballisticLayer) : map.removeLayer(ballisticLayer);
+        
+        document.getElementById('settings-btn').onclick = function() {
+            this.classList.toggle('open');
+            document.getElementById('settings-panel').classList.toggle('active');
+        };
+
         document.getElementById('start-btn').onclick = () => {
             const nick = document.getElementById('user-nick').value.trim();
             if (nick.length >= 2) {
-                const presenceRef = ref(db, 'presence');
-                const p = push(presenceRef); 
-                set(p, { name: nick }); 
-                onDisconnect(p).remove();
-
-                document.getElementById('auth-card').classList.add('card-exit');
+                const pRef = push(ref(db, 'presence')); set(pRef, { name: nick }); onDisconnect(pRef).remove();
+                document.getElementById('auth-overlay').style.opacity = '0';
                 setTimeout(() => {
                     document.getElementById('auth-overlay').classList.add('auth-hidden');
                     document.getElementById('map').classList.add('map-active');
                     document.getElementById('display-nick').innerText = nick;
                     document.getElementById('top-status-bar').style.top = "15px";
-                }, 400);
+                    document.getElementById('settings-btn').style.opacity = "1";
+                }, 800);
             }
         };
 
-        // Лічильник онлайну
-        onValue(ref(db, 'presence'), (s) => { 
-            document.getElementById('online-num').innerText = s.size || 1; 
-        });
-
-        // Оновлення цілей та малювання сліду
-        onValue(ref(db, 'live_units'), (snapshot) => {
-            const data = snapshot.val() || [];
+        const units = {};
+        onValue(ref(db, 'presence'), s => document.getElementById('online-num').innerText = s.size || 1);
+        onValue(ref(db, 'live_units'), snap => {
+            const data = snap.val() || [];
             const activeIds = data.map(d => d.id.toString());
-
-            // Видалення об'єктів
-            Object.keys(units).forEach(id => {
-                if (!activeIds.includes(id)) {
-                    map.removeLayer(units[id].marker);
-                    map.removeLayer(units[id].trail);
-                    delete units[id];
-                }
-            });
-
-            // Оновлення або створення нових
+            Object.keys(units).forEach(id => { if(!activeIds.includes(id)){ map.removeLayer(units[id].m); map.removeLayer(units[id].t); delete units[id]; }});
             data.forEach(u => {
                 const id = u.id.toString();
-                const pos = [u.lat, u.lng];
-
-                if (!units[id]) {
-                    const iconHTML = L.divIcon({
-                        className: 'drone-main-wrap',
-                        html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${u.ang || 0}deg)">`,
-                        iconSize: [32, 32], iconAnchor: [16, 16]
-                    });
-
-                    const marker = L.marker(pos, { icon: iconHTML }).addTo(map);
-                    
-                    // СУЦІЛЬНИЙ ЧЕРВОНИЙ СЛІД (як у файлі indexx...html)
-                    const trail = L.polyline([pos], { 
-                        color: '#FF0000', 
-                        weight: 5, 
-                        opacity: 0.6, 
-                        lineJoin: 'round' 
-                    }).addTo(map);
-
-                    units[id] = { marker, trail, history: [pos] };
+                if(!units[id]){
+                    const m = L.marker([u.lat, u.lng], { icon: L.divIcon({className:'', html:`<img src="${u.icon}" class="unit-icon" style="transform:rotate(${u.ang||0}deg)">`, iconSize:[32,32], iconAnchor:[16,16]}) }).addTo(map);
+                    const t = L.polyline([[u.lat, u.lng]], { color: '#FF0000', weight: 5, opacity: 0.6 }).addTo(map);
+                    units[id] = { m, t, h: [[u.lat, u.lng]] };
                 } else {
-                    units[id].marker.setLatLng(pos);
-                    const img = units[id].marker.getElement()?.querySelector('img');
-                    if (img) img.style.transform = `rotate(${u.ang || 0}deg)`;
-
-                    // Додавання точок до траєкторії
-                    const lastPoint = units[id].history[units[id].history.length - 1];
-                    if (lastPoint[0] !== u.lat || lastPoint[1] !== u.lng) {
-                        units[id].history.push(pos);
-                        units[id].trail.setLatLngs(units[id].history);
-                    }
+                    units[id].m.setLatLng([u.lat, u.lng]);
+                    const img = units[id].m.getElement()?.querySelector('img');
+                    if(img) img.style.transform = `rotate(${u.ang||0}deg)`;
+                    const last = units[id].h[units[id].h.length-1];
+                    if(last[0] !== u.lat || last[1] !== u.lng){ units[id].h.push([u.lat, u.lng]); units[id].t.setLatLngs(units[id].h); }
                 }
             });
         });
