@@ -1,15 +1,36 @@
 <!DOCTYPE html>
-<html>
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Карта мониторинга</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>LIVE Моніторинг повітряних цілей</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #fff; }
-        .unit-icon { width: 32px; height: 32px; transition: transform 0.2s; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #fff; }
+        #map { height: 100vh; width: 100vw; }
+        
+        /* Стиль иконки цели */
+        .unit-icon { 
+            display: block; 
+            width: 32px !important; 
+            height: 32px !important; 
+            transition: transform 0.1s linear; 
+        }
+
+        /* Индикатор LIVE */
+        .live-badge {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(255, 255, 255, 0.9);
+            color: #d00; border: 1px solid #d00; padding: 4px 15px;
+            border-radius: 20px; font-weight: bold; font-size: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
+
+    <div class="live-badge">🔴 В ЕФІРІ: LIVE</div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -17,34 +38,77 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+        // Конфигурация Firebase (такая же как в админке)
         const firebaseConfig = { databaseURL: "https://map-objects-75fa0-default-rtdb.europe-west1.firebasedatabase.app/" };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        const map = L.map('map', { zoomControl: false }).setView([48.3, 31.1], 6);
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.37, 31.16], 6);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        const markers = {}, lines = {};
+        const units = {}; // Объект для хранения активных маркеров и линий
 
-        onValue(ref(db, 'live_units'), (s) => {
-            const data = s.val() || [];
-            const ids = data.map(d => d.id.toString());
+        // Слушаем изменения в базе данных
+        onValue(ref(db, 'live_units'), (snapshot) => {
+            const data = snapshot.val() || [];
+            const activeIds = data.map(d => d.id.toString());
 
-            Object.keys(markers).forEach(id => {
-                if(!ids.includes(id)) { map.removeLayer(markers[id]); map.removeLayer(lines[id]); delete markers[id]; delete lines[id]; }
+            // 1. Удаляем цели, которых больше нет в базе
+            Object.keys(units).forEach(id => {
+                if (!activeIds.includes(id)) {
+                    map.removeLayer(units[id].marker);
+                    map.removeLayer(units[id].vector);
+                    map.removeLayer(units[id].trail);
+                    delete units[id];
+                }
             });
 
+            // 2. Добавляем или обновляем цели
             data.forEach(u => {
                 const id = u.id.toString();
-                if(!markers[id]) {
-                    const i = L.divIcon({ html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${u.ang}deg)">`, iconSize:[32,32], iconAnchor:[16,16], className:'' });
-                    markers[id] = L.marker([u.lat, u.lng], {icon:i}).addTo(map);
-                    lines[id] = L.polyline([[u.lat, u.lng], u.tLat ? [u.tLat, u.tLng] : [u.lat, u.lng]], {color:'blue', weight:2, dashArray:'5,5', opacity:0.5}).addTo(map);
+                const pos = [u.lat, u.lng];
+                const angle = u.ang || 0;
+
+                if (!units[id]) {
+                    // Создаем новую цель
+                    const iconHTML = L.divIcon({
+                        className: 'custom-icon',
+                        html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${angle}deg)">`,
+                        iconSize: [32, 32], iconAnchor: [16, 16]
+                    });
+
+                    const marker = L.marker(pos, { icon: iconHTML }).addTo(map);
+                    
+                    // Синий пунктирный вектор направления
+                    const vector = L.polyline([pos, u.tLat ? [u.tLat, u.tLng] : pos], { 
+                        color: 'blue', weight: 2, dashArray: '5,5', opacity: 0.4 
+                    }).addTo(map);
+
+                    // Тот самый жирный красный след (сплошной)
+                    const trail = L.polyline([pos], { 
+                        color: '#FF0000', weight: 5, opacity: 0.6, lineJoin: 'round' 
+                    }).addTo(map);
+
+                    units[id] = { marker, vector, trail, history: [pos] };
                 } else {
-                    markers[id].setLatLng([u.lat, u.lng]);
-                    lines[id].setLatLngs([[u.lat, u.lng], u.tLat ? [u.tLat, u.tLng] : [u.lat, u.lng]]);
-                    const img = markers[id].getElement()?.querySelector('img');
-                    if(img) img.style.transform = `rotate(${u.ang}deg)`;
+                    // Обновляем существующую цель
+                    units[id].marker.setLatLng(pos);
+                    
+                    // Поворот иконки
+                    const img = units[id].marker.getElement()?.querySelector('img');
+                    if (img) img.style.transform = `rotate(${angle}deg)`;
+
+                    // Обновляем вектор
+                    if (u.tLat) {
+                        units[id].vector.setLatLngs([pos, [u.tLat, u.tLng]]);
+                    }
+
+                    // Обновляем красный след (добавляем точку в историю, если она изменилась)
+                    const lastPoint = units[id].history[units[id].history.length - 1];
+                    if (lastPoint[0] !== u.lat || lastPoint[1] !== u.lng) {
+                        units[id].history.push(pos);
+                        units[id].trail.setLatLngs(units[id].history);
+                    }
                 }
             });
         });
