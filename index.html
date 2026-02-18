@@ -10,12 +10,20 @@
         :root {
             --main-yellow: #ffeb3b;
             --glow: 0 0 15px rgba(255, 235, 59, 0.4);
-            --card-bg: rgba(0, 0, 0, 0.85);
+            --card-bg: rgba(22, 27, 34, 0.95);
         }
 
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: #fff; overflow: hidden; }
-        #map { height: 100vh; width: 100%; transition: filter 1s ease; filter: blur(15px) brightness(0.8); }
+        #map { height: 100vh; width: 100%; transition: filter 1s ease; filter: blur(15px) brightness(0.8); z-index: 1; }
         .map-active { filter: blur(0px) brightness(1) !important; }
+
+        /* ВОДЯНИЙ ЗНАК */
+        #watermark-overlay {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 2; pointer-events: none; white-space: nowrap;
+            font-weight: 900; text-transform: uppercase; letter-spacing: 5px;
+            font-size: 5vw; opacity: 0.1; color: #000; display: none;
+        }
 
         /* ВЕРХНЯ ПАНЕЛЬ */
         #top-status-bar {
@@ -33,66 +41,52 @@
             background: #000; border: 1px solid var(--main-yellow);
             width: 50px; height: 50px; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            cursor: pointer; box-shadow: var(--glow); 
-            opacity: 0; 
+            cursor: pointer; box-shadow: var(--glow); opacity: 0; 
             transition: all 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
         }
-        #settings-btn svg { width: 26px; height: 26px; fill: var(--main-yellow); transition: transform 0.5s; }
-        
-        /* Ефект при відкритті: зміщується вище і лівіше */
-        #settings-btn.open {
-            bottom: 185px; /* піднялась вище */
-            right: 35px;   /* змістилась лівіше */
-            transform: scale(0.9);
-        }
-        #settings-btn.open svg { transform: rotate(180deg); }
+        #settings-btn.open { bottom: 420px; right: 35px; transform: scale(0.9); }
+        #settings-btn svg { width: 26px; height: 26px; fill: var(--main-yellow); transition: 0.5s; }
 
         /* ПАНЕЛЬ НАЛАШТУВАНЬ */
         #settings-panel {
             position: fixed; bottom: 25px; right: 25px;
             z-index: 5500; background: var(--card-bg); border: 1px solid var(--main-yellow);
             backdrop-filter: blur(15px); box-shadow: var(--glow); border-radius: 25px;
-            padding: 20px; width: 230px; color: white;
+            padding: 20px; width: 260px; color: white;
             pointer-events: none; opacity: 0; transform: scale(0.8); transform-origin: bottom right;
             transition: all 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28);
         }
         #settings-panel.active { pointer-events: auto; opacity: 1; transform: scale(1); }
 
-        .setting-row { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; font-size: 14px; font-weight: 600; }
+        .setting-row { display: flex; align-items: center; justify-content: space-between; margin: 12px 0; font-size: 13px; font-weight: 600; }
+        .input-dark { background: #000; border: 1px solid #444; color: white; border-radius: 5px; padding: 4px; font-size: 11px; width: 100px; }
         
-        /* ПЕРЕМИКАЧІ */
-        .switch { position: relative; display: inline-block; width: 38px; height: 22px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; inset: 0; background-color: #333; transition: .4s; border-radius: 20px; border: 1px solid #555; }
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: var(--main-yellow); border-color: var(--main-yellow); }
-        input:checked + .slider:before { transform: translateX(16px); background-color: #000; }
+        .unit-icon { width: 32px; height: 32px; transition: transform 0.1s linear; }
 
-        /* РЕЄСТРАЦІЯ */
-        #auth-overlay { position: fixed; inset: 0; background: #f0f0f0; display: flex; align-items: center; justify-content: center; z-index: 9999; transition: 0.8s; }
+        /* АВТОРИЗАЦІЯ */
+        #auth-overlay { position: fixed; inset: 0; background: #0d1117; display: flex; align-items: center; justify-content: center; z-index: 9999; transition: 0.8s; }
         .auth-card { width: 85%; max-width: 350px; text-align: center; background: #161b22; padding: 40px 25px; border-radius: 35px; border: 2px solid var(--main-yellow); box-shadow: var(--glow); }
-        .nick-input { width: 85%; background: #000; border: 1px solid var(--main-yellow); border-radius: 12px; padding: 15px; color: white; text-align: center; font-size: 16px; outline: none; margin-bottom: 25px; }
-        .btn-start { background: var(--main-yellow); color: #000; border: none; padding: 15px 50px; border-radius: 30px; font-size: 16px; font-weight: 900; cursor: pointer; }
+        .nick-input { width: 85%; background: #000; border: 1px solid var(--main-yellow); border-radius: 12px; padding: 15px; color: white; text-align: center; margin-bottom: 25px; outline: none; }
+        .btn-start { background: var(--main-yellow); color: #000; border: none; padding: 15px 50px; border-radius: 30px; font-weight: 900; cursor: pointer; }
         .auth-hidden { opacity: 0 !important; visibility: hidden !important; }
-        .card-exit { transform: scale(2); opacity: 0 !important; }
-
-        .unit-icon { width: 32px !important; height: 32px !important; transition: transform 0.1s linear; }
     </style>
 </head>
 <body>
 
+    <div id="watermark-overlay">ЄЦІЛЬ</div>
+
     <div id="auth-overlay">
         <div class="auth-card">
-            <div style="color: var(--main-yellow); font-size: 32px; font-weight: 900; line-height:1.1; margin-bottom: 30px;">ОПЕРАТИВНО<br>ЄЦІЛЬ</div>
+            <div style="color: var(--main-yellow); font-size: 32px; font-weight: 900; line-height:1; margin-bottom: 30px;">ОПЕРАТИВНО<br>ЄЦІЛЬ</div>
             <input type="text" id="user-nick" class="nick-input" placeholder="Позивний">
             <button class="btn-start" id="start-btn">УВІЙТИ</button>
         </div>
     </div>
 
     <div id="top-status-bar">
-        <div style="display: flex; flex-direction: column; align-items: center;"><span style="color: var(--main-yellow); font-size: 8px; text-transform: uppercase;">Проєкт</span><span>ЄЦІЛЬ</span></div>
-        <div style="display: flex; flex-direction: column; align-items: center;"><span style="color: var(--main-yellow); font-size: 8px; text-transform: uppercase;">Позивний</span><span id="display-nick">---</span></div>
-        <div style="display: flex; flex-direction: column; align-items: center;"><span style="color: var(--main-yellow); font-size: 8px; text-transform: uppercase;">Онлайн</span><span id="online-num" style="color:#4caf50;">1</span></div>
+        <div style="text-align:center"><span style="color:var(--main-yellow); font-size:8px; display:block">ПРОЄКТ</span><span>ЄЦІЛЬ</span></div>
+        <div style="text-align:center"><span style="color:var(--main-yellow); font-size:8px; display:block">ПОЗИВНИЙ</span><span id="display-nick">---</span></div>
+        <div style="text-align:center"><span style="color:var(--main-yellow); font-size:8px; display:block">ОНЛАЙН</span><span id="online-num" style="color:#4caf50">1</span></div>
     </div>
 
     <div id="settings-btn">
@@ -100,9 +94,18 @@
     </div>
 
     <div id="settings-panel">
-        <div style="text-align:center; color:var(--main-yellow); font-weight:900; font-size:11px; margin-bottom:15px;">КЕРУВАННЯ ШАРАМИ</div>
-        <div class="setting-row"><span>Пуски "Shahed"</span><label class="switch"><input type="checkbox" id="toggle-shahed" checked><span class="slider"></span></label></div>
-        <div class="setting-row"><span>Зони балістики</span><label class="switch"><input type="checkbox" id="toggle-ballistic" checked><span class="slider"></span></label></div>
+        <div style="text-align:center; color:var(--main-yellow); font-weight:900; font-size:11px; margin-bottom:12px; letter-spacing:2px;">НАЛАШТУВАННЯ</div>
+        
+        <div class="setting-row"><span>Темна мапа</span><input type="checkbox" id="toggle-map-theme"></div>
+        <div class="setting-row"><span>Червоний слід</span><input type="checkbox" id="toggle-trails" checked></div>
+        <div class="setting-row"><span>Пуски Shahed</span><input type="checkbox" id="toggle-shahed" checked></div>
+        
+        <div style="height:1px; background:#444; margin:10px 0;"></div>
+        <div style="text-align:center; color:var(--main-yellow); font-weight:900; font-size:9px; margin-bottom:10px;">ВОДЯНИЙ ЗНАК</div>
+        
+        <div class="setting-row"><span>Текст</span><input type="text" id="wm-text" class="input-dark" placeholder="Текст..."></div>
+        <div class="setting-row"><span>Колір</span><input type="color" id="wm-color" value="#000000" style="border:none; background:none; cursor:pointer; width:30px;"></div>
+        <div class="setting-row"><span>Прозорість</span><input type="range" id="wm-opacity" min="0" max="1" step="0.1" value="0.1" style="width:60px;"></div>
     </div>
 
     <div id="map"></div>
@@ -117,58 +120,85 @@
         const db = getDatabase(app);
 
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.37, 31.16], 6);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        
+        const lightTheme = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+        const darkTheme = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+        
+        // По замовчуванню світла
+        lightTheme.addTo(map);
 
         const shahedLayer = L.layerGroup().addTo(map);
-        const ballisticLayer = L.layerGroup().addTo(map);
+        const units = {};
 
-        const shahedCoords = [[46.058,38.237],[54.338,32.475],[46.815,36.759],[48.072,37.715],[44.781,33.573],[51.750,36.292],[53.356,35.789],[52.826,34.500],[48.951,40.296],[45.017,35.846],[45.117,33.986]];
-        const ballisticCoords = [[49.411,38.154],[45.698,34.422],[45.020,34.101],[48.916,40.349],[47.218,38.782],[45.744,33.489],[52.619,32.292],[51.746,36.287],[50.941,39.488],[50.524,36.528]];
+        // --- ПЕРЕМИКАЧ ТЕМИ ---
+        document.getElementById('toggle-map-theme').onchange = (e) => {
+            if(e.target.checked) {
+                map.removeLayer(lightTheme);
+                darkTheme.addTo(map);
+                document.body.style.background = "#000";
+            } else {
+                map.removeLayer(darkTheme);
+                lightTheme.addTo(map);
+                document.body.style.background = "#fff";
+            }
+        };
 
-        shahedCoords.forEach(c => L.marker(c, {icon: L.icon({iconUrl:'Shahedpusk.png', iconSize:[24,24]})}).addTo(shahedLayer));
-        ballisticCoords.forEach(c => L.marker(c, {icon: L.icon({iconUrl:'puskbr.png', iconSize:[24,24]})}).addTo(ballisticLayer));
+        // --- ВОДЯНИЙ ЗНАК ---
+        const wm = document.getElementById('watermark-overlay');
+        document.getElementById('wm-text').oninput = (e) => {
+            wm.innerText = e.target.value;
+            wm.style.display = e.target.value ? 'block' : 'none';
+        };
+        document.getElementById('wm-color').oninput = (e) => wm.style.color = e.target.value;
+        document.getElementById('wm-opacity').oninput = (e) => wm.style.opacity = e.target.value;
 
-        document.getElementById('toggle-shahed').onchange = (e) => e.target.checked ? map.addLayer(shahedLayer) : map.removeLayer(shahedLayer);
-        document.getElementById('toggle-ballistic').onchange = (e) => e.target.checked ? map.addLayer(ballisticLayer) : map.removeLayer(ballisticLayer);
-        
+        // --- НАЛАШТУВАННЯ ---
         document.getElementById('settings-btn').onclick = function() {
             this.classList.toggle('open');
             document.getElementById('settings-panel').classList.toggle('active');
         };
 
+        let showTrails = true;
+        document.getElementById('toggle-trails').onchange = (e) => {
+            showTrails = e.target.checked;
+            Object.values(units).forEach(u => {
+                if(showTrails) map.addLayer(u.t); else map.removeLayer(u.t);
+            });
+        };
+
+        // --- ВХІД ---
         document.getElementById('start-btn').onclick = () => {
             const nick = document.getElementById('user-nick').value.trim();
             if (nick.length >= 2) {
                 const pRef = push(ref(db, 'presence')); set(pRef, { name: nick }); onDisconnect(pRef).remove();
-                document.getElementById('auth-overlay').style.opacity = '0';
-                setTimeout(() => {
-                    document.getElementById('auth-overlay').classList.add('auth-hidden');
-                    document.getElementById('map').classList.add('map-active');
-                    document.getElementById('display-nick').innerText = nick;
-                    document.getElementById('top-status-bar').style.top = "15px";
-                    document.getElementById('settings-btn').style.opacity = "1";
-                }, 800);
+                document.getElementById('auth-overlay').classList.add('auth-hidden');
+                document.getElementById('map').classList.add('map-active');
+                document.getElementById('display-nick').innerText = nick;
+                document.getElementById('top-status-bar').style.top = "15px";
+                document.getElementById('settings-btn').style.opacity = "1";
             }
         };
 
-        const units = {};
-        onValue(ref(db, 'presence'), s => document.getElementById('online-num').innerText = s.size || 1);
+        // --- ОНОВЛЕННЯ ЦІЛЕЙ ---
         onValue(ref(db, 'live_units'), snap => {
             const data = snap.val() || [];
-            const activeIds = data.map(d => d.id.toString());
-            Object.keys(units).forEach(id => { if(!activeIds.includes(id)){ map.removeLayer(units[id].m); map.removeLayer(units[id].t); delete units[id]; }});
             data.forEach(u => {
                 const id = u.id.toString();
-                if(!units[id]){
-                    const m = L.marker([u.lat, u.lng], { icon: L.divIcon({className:'', html:`<img src="${u.icon}" class="unit-icon" style="transform:rotate(${u.ang||0}deg)">`, iconSize:[32,32], iconAnchor:[16,16]}) }).addTo(map);
-                    const t = L.polyline([[u.lat, u.lng]], { color: '#FF0000', weight: 5, opacity: 0.6 }).addTo(map);
+                if (!units[id]) {
+                    const m = L.marker([u.lat, u.lng], {
+                        icon: L.divIcon({
+                            className: 'u-wrap',
+                            html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${u.ang||0}deg)">`,
+                            iconSize: [32, 32], iconAnchor: [16, 16]
+                        })
+                    }).addTo(map);
+                    const t = L.polyline([[u.lat, u.lng]], { color: 'red', weight: 4, opacity: 0.6 });
+                    if(showTrails) t.addTo(map);
                     units[id] = { m, t, h: [[u.lat, u.lng]] };
                 } else {
                     units[id].m.setLatLng([u.lat, u.lng]);
-                    const img = units[id].m.getElement()?.querySelector('img');
-                    if(img) img.style.transform = `rotate(${u.ang||0}deg)`;
-                    const last = units[id].h[units[id].h.length-1];
-                    if(last[0] !== u.lat || last[1] !== u.lng){ units[id].h.push([u.lat, u.lng]); units[id].t.setLatLngs(units[id].h); }
+                    units[id].h.push([u.lat, u.lng]);
+                    units[id].t.setLatLngs(units[id].h);
                 }
             });
         });
