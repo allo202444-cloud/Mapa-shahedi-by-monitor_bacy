@@ -3,107 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>LIVE Моніторинг повітряних цілей</title>
+    <title>Оперативно Єціль | LIVE</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #fff; }
-        #map { height: 100vh; width: 100vw; }
-        
-        /* Стиль иконки цели */
-        .unit-icon { 
-            display: block; 
-            width: 32px !important; 
-            height: 32px !important; 
-            transition: transform 0.1s linear; 
+        /* Стилі з файлу index (2).html */
+        :root {
+            --main-yellow: #ffeb3b;
+            --glow: 0 0 20px rgba(255, 235, 59, 0.5);
+            --card-bg: #161b22;
         }
 
-        /* Индикатор LIVE */
-        .live-badge {
-            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: rgba(255, 255, 255, 0.9);
-            color: #d00; border: 1px solid #d00; padding: 4px 15px;
-            border-radius: 20px; font-weight: bold; font-size: 12px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        body, html { 
+            margin: 0; padding: 0; height: 100%; 
+            font-family: 'Segoe UI', sans-serif; 
+            background: #fff; overflow: hidden; 
+        }
+
+        /* МАПА (стандартна світла) */
+        #map { 
+            height: 100vh; width: 100%; 
+            transition: filter 1.5s ease; 
+            filter: blur(20px) brightness(0.8); /* Трохи світліший блюр для білої карти */
+        }
+        .map-active { filter: blur(0px) brightness(1) !important; }
+
+        /* ВЕРХНЯ ПАНЕЛЬ (Dynamic Island) */
+        #top-status-bar {
+            position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
+            z-index: 5000; background: #000; border: 1px solid var(--main-yellow);
+            box-shadow: var(--glow); border-radius: 20px;
+            padding: 10px 25px; display: flex; align-items: center; gap: 30px;
+            color: white; font-size: 14px; font-weight: bold;
+            transition: top 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        .status-item { display: flex; flex-direction: column; align-items: center; }
+        .status-label { color: var(--main-yellow); font-size: 9px; text-transform: uppercase; }
+
+        /* РЕЄСТРАЦІЯ */
+        #auth-overlay {
+            position: fixed; inset: 0; background: #f0f0f0; /* Світлий фон для світлої карти */
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999; transition: 0.8s;
+        }
+        .auth-card {
+            width: 85%; max-width: 380px; text-align: center;
+            background: var(--card-bg); padding: 50px 30px; border-radius: 40px;
+            border: 2px solid var(--main-yellow); box-shadow: var(--glow);
+            transition: transform 0.8s ease, opacity 0.5s ease;
+        }
+        .nick-input {
+            width: 90%; background: #000; border: 1px solid var(--main-yellow);
+            border-radius: 15px; padding: 18px; color: white; text-align: center;
+            font-size: 18px; outline: none; margin-bottom: 30px;
+        }
+        .btn-start {
+            background: var(--main-yellow); color: #000; border: none;
+            padding: 18px 60px; border-radius: 40px; font-size: 18px;
+            font-weight: 900; cursor: pointer;
+        }
+        .auth-hidden { opacity: 0 !important; visibility: hidden !important; }
+        .card-exit { transform: scale(3) !important; opacity: 0 !important; }
+
+        /* ІКОНКИ ЦІЛЕЙ */
+        .unit-icon { 
+            width: 32px !important; height: 32px !important; 
+            transition: transform 0.1s linear; 
         }
     </style>
 </head>
 <body>
 
-    <div class="live-badge">🔴 В ЕФІРІ: LIVE</div>
+    <div id="auth-overlay">
+        <div class="auth-card" id="auth-card">
+            <div style="color: var(--main-yellow); font-size: 38px; font-weight: 900; line-height:1; margin-bottom: 40px;">ОПЕРАТИВНО<br>ЄЦІЛЬ</div>
+            <input type="text" id="user-nick" class="nick-input" placeholder="Позивний">
+            <button class="btn-start" id="start-btn">УВІЙТИ</button>
+        </div>
+    </div>
+
+    <div id="top-status-bar">
+        <div class="status-item"><span class="status-label">Проєкт</span><span>ЄЦІЛЬ</span></div>
+        <div class="status-item"><span class="status-label">Позивний</span><span id="display-nick" style="color:var(--main-yellow);">---</span></div>
+        <div class="status-item"><span class="status-label">Онлайн</span><span id="online-num" style="color:#4caf50;">1</span></div>
+    </div>
+
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, onValue, set, push, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // Конфигурация Firebase (такая же как в админке)
         const firebaseConfig = { databaseURL: "https://map-objects-75fa0-default-rtdb.europe-west1.firebasedatabase.app/" };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
+        // Ініціалізація карти
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.37, 31.16], 6);
+        
+        // СТАНДАРТНИЙ БІЛИЙ ШАР
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        const units = {}; // Объект для хранения активных маркеров и линий
+        const units = {};
 
-        // Слушаем изменения в базе данных
+        // Логіка реєстрації та входу
+        document.getElementById('start-btn').onclick = () => {
+            const nick = document.getElementById('user-nick').value.trim();
+            if (nick.length >= 2) {
+                const presenceRef = ref(db, 'presence');
+                const p = push(presenceRef); 
+                set(p, { name: nick }); 
+                onDisconnect(p).remove();
+
+                document.getElementById('auth-card').classList.add('card-exit');
+                setTimeout(() => {
+                    document.getElementById('auth-overlay').classList.add('auth-hidden');
+                    document.getElementById('map').classList.add('map-active');
+                    document.getElementById('display-nick').innerText = nick;
+                    document.getElementById('top-status-bar').style.top = "15px";
+                }, 400);
+            }
+        };
+
+        // Лічильник онлайну
+        onValue(ref(db, 'presence'), (s) => { 
+            document.getElementById('online-num').innerText = s.size || 1; 
+        });
+
+        // Оновлення цілей та малювання сліду
         onValue(ref(db, 'live_units'), (snapshot) => {
             const data = snapshot.val() || [];
             const activeIds = data.map(d => d.id.toString());
 
-            // 1. Удаляем цели, которых больше нет в базе
+            // Видалення об'єктів
             Object.keys(units).forEach(id => {
                 if (!activeIds.includes(id)) {
                     map.removeLayer(units[id].marker);
-                    map.removeLayer(units[id].vector);
                     map.removeLayer(units[id].trail);
                     delete units[id];
                 }
             });
 
-            // 2. Добавляем или обновляем цели
+            // Оновлення або створення нових
             data.forEach(u => {
                 const id = u.id.toString();
                 const pos = [u.lat, u.lng];
-                const angle = u.ang || 0;
 
                 if (!units[id]) {
-                    // Создаем новую цель
                     const iconHTML = L.divIcon({
-                        className: 'custom-icon',
-                        html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${angle}deg)">`,
+                        className: 'drone-main-wrap',
+                        html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${u.ang || 0}deg)">`,
                         iconSize: [32, 32], iconAnchor: [16, 16]
                     });
 
                     const marker = L.marker(pos, { icon: iconHTML }).addTo(map);
                     
-                    // Синий пунктирный вектор направления
-                    const vector = L.polyline([pos, u.tLat ? [u.tLat, u.tLng] : pos], { 
-                        color: 'blue', weight: 2, dashArray: '5,5', opacity: 0.4 
-                    }).addTo(map);
-
-                    // Тот самый жирный красный след (сплошной)
+                    // СУЦІЛЬНИЙ ЧЕРВОНИЙ СЛІД (як у файлі indexx...html)
                     const trail = L.polyline([pos], { 
-                        color: '#FF0000', weight: 5, opacity: 0.6, lineJoin: 'round' 
+                        color: '#FF0000', 
+                        weight: 5, 
+                        opacity: 0.6, 
+                        lineJoin: 'round' 
                     }).addTo(map);
 
-                    units[id] = { marker, vector, trail, history: [pos] };
+                    units[id] = { marker, trail, history: [pos] };
                 } else {
-                    // Обновляем существующую цель
                     units[id].marker.setLatLng(pos);
-                    
-                    // Поворот иконки
                     const img = units[id].marker.getElement()?.querySelector('img');
-                    if (img) img.style.transform = `rotate(${angle}deg)`;
+                    if (img) img.style.transform = `rotate(${u.ang || 0}deg)`;
 
-                    // Обновляем вектор
-                    if (u.tLat) {
-                        units[id].vector.setLatLngs([pos, [u.tLat, u.tLng]]);
-                    }
-
-                    // Обновляем красный след (добавляем точку в историю, если она изменилась)
+                    // Додавання точок до траєкторії
                     const lastPoint = units[id].history[units[id].history.length - 1];
                     if (lastPoint[0] !== u.lat || lastPoint[1] !== u.lng) {
                         units[id].history.push(pos);
