@@ -179,29 +179,48 @@
             }
         };
 
-        // --- ОНОВЛЕННЯ ЦІЛЕЙ ---
-        onValue(ref(db, 'live_units'), snap => {
-            const data = snap.val() || [];
-            data.forEach(u => {
-                const id = u.id.toString();
-                if (!units[id]) {
-                    const m = L.marker([u.lat, u.lng], {
-                        icon: L.divIcon({
-                            className: 'u-wrap',
-                            html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${u.ang||0}deg)">`,
-                            iconSize: [32, 32], iconAnchor: [16, 16]
-                        })
-                    }).addTo(map);
-                    const t = L.polyline([[u.lat, u.lng]], { color: 'red', weight: 4, opacity: 0.6 });
-                    if(showTrails) t.addTo(map);
-                    units[id] = { m, t, h: [[u.lat, u.lng]] };
-                } else {
-                    units[id].m.setLatLng([u.lat, u.lng]);
-                    units[id].h.push([u.lat, u.lng]);
-                    units[id].t.setLatLngs(units[id].h);
-                }
-            });
-        });
+// --- ОНОВЛЕННЯ ЦІЛЕЙ ---
+onValue(ref(db, 'live_units'), snap => {
+    const data = snap.val() || [];
+    data.forEach(u => {
+        const id = u.id.toString();
+        const latLng = [u.lat, u.lng];
+        const rotation = u.ang || 0;
+
+        if (!units[id]) {
+            // Створюємо новий маркер
+            const m = L.marker(latLng, {
+                icon: L.divIcon({
+                    className: 'u-wrap',
+                    html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${rotation}deg)">`,
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                })
+            }).addTo(map);
+
+            const t = L.polyline([latLng], { color: 'red', weight: 4, opacity: 0.6 });
+            if(showTrails) t.addTo(map);
+
+            units[id] = { m, t, h: [latLng] };
+        } else {
+            // ОНОВЛЕННЯ ІСНУЮЧОГО МАРКЕРА:
+            // 1. Оновлюємо позицію
+            units[id].m.setLatLng(latLng);
+            
+            // 2. ОНОВЛЮЄМО ПОВОРОТ ТА ІКОНКУ БЕЗ ПЕРЕЗАВАНТАЖЕННЯ
+            units[id].m.setIcon(L.divIcon({
+                className: 'u-wrap',
+                html: `<img src="${u.icon}" class="unit-icon" style="transform:rotate(${rotation}deg)">`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            }));
+
+            // 3. Оновлюємо слід (trail)
+            units[id].h.push(latLng);
+            units[id].t.setLatLngs(units[id].h);
+        }
+    });
+});
     </script>
 </body>
 </html>
